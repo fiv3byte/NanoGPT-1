@@ -9,6 +9,8 @@ from src.utils import get_device
 
 def load_model(ckpt_path: str, device: str):
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    if ckpt.get("tokenizer") != "utf8_bytes_v1":
+        raise ValueError("Checkpoint is not marked as UTF-8. Retrain with the corrected train.py.")
     cfg = ckpt.get("config", {})
     model = NanoGPT(
         vocab_size=cfg.get("vocab_size", 256),
@@ -22,26 +24,19 @@ def load_model(ckpt_path: str, device: str):
     state = ckpt["model"] if "model" in ckpt else ckpt
     # strip possible torch.compile prefixes
     state = {k.replace("_orig_mod.", ""): v for k, v in state.items()}
-    model.load_state_dict(state, strict=False)
+    model.load_state_dict(state, strict=True)
     model.to(device)
     model.eval()
     return model
 
 
 def bytes_to_text(ids) -> str:
-    # map back 0-255 → characters (same as training: ord(c) % 256)
-    chars = []
-    for i in ids:
-        try:
-            chars.append(chr(int(i)))
-        except ValueError:
-            chars.append("?")
-    return "".join(chars)
+    return bytes(int(i) for i in ids).decode("utf-8", errors="replace")
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--ckpt", default="checkpoints/nanogpt_best.pt")
+    p.add_argument("--ckpt", default="checkpoints_utf8/nanogpt_best.pt")
     p.add_argument("--prompt", default="Жил-был", help="starting text (UTF-8)")
     p.add_argument("--max_tokens", type=int, default=300)
     p.add_argument("--temperature", type=float, default=0.8)
@@ -56,7 +51,9 @@ def main():
     print(f"Loaded {args.ckpt} on {device}")
 
     # encode prompt the same way as training
-    prompt_ids = [ord(c) % 256 for c in args.prompt]
+    prompt_ids = list(args.prompt.encode("utf-8"))
+    if not prompt_ids:
+        p.error("--prompt must not be empty")
     idx = torch.tensor([prompt_ids], dtype=torch.long, device=device)
 
     out = model.generate(
