@@ -19,7 +19,9 @@ class ByteDataset(Dataset):
             except:
                 pass
 
-        self.data = torch.tensor([ord(c) % 256 for c in text], dtype=torch.long)
+        self.data = torch.tensor(list(text.encode("utf-8")), dtype=torch.long)
+        if block_size < 1 or len(self.data) <= block_size:
+            raise ValueError("Text must contain more UTF-8 bytes than block_size.")
         self.block_size = block_size
         print(f"Dataset: {len(self.data)} bytes")
 
