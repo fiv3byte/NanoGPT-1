@@ -1,6 +1,5 @@
 """
-Train NanoGPT-1M on Quadro P3000 (6 GB) / any CUDA or CPU.
-Optimized defaults: larger block, reasonable batch, AMP if available.
+Train NanoGPT-1M on any CUDA or CPU.
 """
 import os
 import time
@@ -25,7 +24,7 @@ def parse_args():
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--epochs", type=int, default=8)
     p.add_argument("--data", type=str, default="data/input.txt")
-    p.add_argument("--out_dir", type=str, default="checkpoints")
+    p.add_argument("--out_dir", type=str, default="checkpoints_utf8")
     p.add_argument("--compile", action="store_true", help="torch.compile (PyTorch 2+)")
     p.add_argument("--no_amp", action="store_true", help="disable mixed precision")
     return p.parse_args()
@@ -42,7 +41,7 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
         print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
-    # Dataset (built-in Russian fairy-tale + any extra text you put in data/input.txt)
+    # Dataset: external UTF-8 file, or built-in fairy-tale if absent/short
     dataset = ByteDataset(args.data, block_size=args.block_size)
     loader = DataLoader(
         dataset,
@@ -50,7 +49,7 @@ def main():
         shuffle=True,
         num_workers=0,          # safer on Windows / old drivers
         pin_memory=(device == "cuda"),
-        drop_last=True,
+        drop_last=False,
     )
 
     model = NanoGPT(
@@ -75,7 +74,7 @@ def main():
 
     # cosine schedule with warm-up
     total_steps = args.epochs * len(loader)
-    warmup = max(50, total_steps // 20)
+    warmup = min(max(1, total_steps // 20), max(1, total_steps // 2))
 
     def lr_lambda(step):
         if step < warmup:
@@ -133,6 +132,7 @@ def main():
                 "n_heads": args.n_heads,
                 "dropout": args.dropout,
             },
+            "tokenizer": "utf8_bytes_v1",
             "epoch": epoch,
             "loss": avg,
         }
