@@ -1,6 +1,5 @@
 """
-NanoGPT ~1M params — causal GPT for low-power GPUs (Quadro P3000 / GTX 1060 class).
-Fixes from original: proper causal masking, standard 4x MLP, cleaner init.
+NanoGPT ~1M params — causal GPT for low-power GPUs.
 """
 import math
 import torch
@@ -163,3 +162,4 @@ class NanoGPT(nn.Module):
             next_token = torch.multinomial(probs, num_samples=1)
             idx = torch.cat([idx, next_token], dim=1)
         return idx
+
