@@ -15,7 +15,7 @@ pip install -r requirements.txt
 python train.py
 
 # генерация
-python generate.py --prompt "Жил-был" --max_tokens 250
+python generate.py --prompt "Привет!" --max_tokens 250
 ```
 
 ### Подстройка под вашу карту
